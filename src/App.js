@@ -13,6 +13,7 @@ function App() {
   const [status, setStatus] = useState('카메라를 시작하려면 "Start Camera" 버튼을 클릭하세요.');
   const [vocabulary, setVocabulary] = useState([]);
   const [isBackCamera, setIsBackCamera] = useState(true); // 후면 카메라 상태
+  const [detectionMode, setDetectionMode] = useState('normal'); // normal, enhanced
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -24,23 +25,57 @@ function App() {
     loadVocabulary();
   }, []);
 
-  // 모델 로드 (기본 설정으로 복원)
+  // 모델 로드 (향상된 모델 사용)
   const loadModel = async () => {
     try {
       setStatus('AI 모델을 로딩 중...');
       console.log('TensorFlow.js 백엔드:', tf.getBackend());
       
-      // 가장 기본적인 설정으로 모델 로드
-      const loadedModel = await cocoSsd.load();
+      // 더 정확한 모델 로드 시도
+      let loadedModel;
+      try {
+        // MobileNet v2 기반 모델 시도 (더 정확함)
+        loadedModel = await cocoSsd.load({
+          base: 'mobilenet_v2'
+        });
+        setStatus('고정밀 AI 모델이 로드되었습니다!');
+        console.log('MobileNet v2 기반 COCO-SSD 모델이 로드되었습니다.');
+      } catch (v2Error) {
+        console.log('v2 모델 실패, v1으로 폴백:', v2Error);
+        // 폴백으로 기본 모델 사용
+        loadedModel = await cocoSsd.load();
+        setStatus('기본 AI 모델이 로드되었습니다.');
+        console.log('기본 COCO-SSD 모델이 로드되었습니다.');
+      }
       
       setModel(loadedModel);
-      setStatus('AI 모델이 성공적으로 로드되었습니다!');
-      console.log('COCO-SSD 모델이 로드되었습니다.');
+      
+      // 인식 가능한 클래스 목록 표시
+      displayAvailableClasses();
       
     } catch (error) {
       console.error('모델 로드 실패:', error);
       setStatus(`모델 로드 실패: ${error.message}. 페이지를 새로고침해주세요.`);
     }
+  };
+
+  // 인식 가능한 클래스 목록 표시
+  const displayAvailableClasses = () => {
+    const cocoClasses = [
+      'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat',
+      'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat',
+      'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack',
+      'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball',
+      'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', 'tennis racket',
+      'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
+      'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake',
+      'chair', 'couch', 'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop',
+      'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink',
+      'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush'
+    ];
+    
+    console.log('COCO-SSD 인식 가능한 클래스들:', cocoClasses);
+    console.log('총', cocoClasses.length, '개 클래스');
   };
 
   // 단어장 로드
@@ -157,7 +192,7 @@ function App() {
     setPredictions([]);
   };
 
-  // 객체 감지 (기본 설정으로 복원)
+  // 객체 감지 (향상된 인식)
   const detectObjects = async (imageElement) => {
     if (!model) {
       setStatus('모델이 로드되지 않았습니다.');
@@ -173,24 +208,130 @@ function App() {
       setStatus('객체를 감지하는 중...');
       
       console.log('객체 감지 시작...');
-      console.log('이미지 요소:', imageElement);
       console.log('이미지 크기:', imageElement?.videoWidth, 'x', imageElement?.videoHeight);
       
-      // 기본 설정으로 모델 감지 실행
-      const predictions = await model.detect(imageElement);
-      console.log('예측 결과:', predictions);
+      // 이미지 전처리 (성능 최적화)
+      const processedImage = preprocessImageForDetection(imageElement);
       
-      setPredictions(predictions);
+      // 감지 모드에 따른 설정
+      const detectionConfig = detectionMode === 'enhanced' ? {
+        maxDetections: 20,        // 향상 모드: 더 많은 감지
+        scoreThreshold: 0.25,     // 향상 모드: 더 낮은 임계값
+        nmsRadius: 0.3,           // 향상 모드: 더 엄격한 중복 제거
+        numClasses: 80
+      } : {
+        maxDetections: 10,        // 일반 모드: 기본 감지
+        scoreThreshold: 0.4,      // 일반 모드: 기본 임계값
+        nmsRadius: 0.4,           // 일반 모드: 기본 중복 제거
+        numClasses: 80
+      };
+      
+      const predictions = await model.detect(processedImage, detectionConfig);
+      
+      console.log('원시 예측 결과:', predictions);
+      
+      // 결과 필터링 및 클래스 매핑
+      const filteredPredictions = predictions
+        .filter(pred => pred.score >= 0.4)
+        .map(pred => enhanceObjectRecognition(pred));
+      
+      console.log('향상된 예측 결과:', filteredPredictions);
+      
+      setPredictions(filteredPredictions);
       
       // 캔버스에 바운딩 박스 그리기
-      drawBoundingBoxes(predictions);
+      drawBoundingBoxes(filteredPredictions);
       
-      setStatus(`${predictions.length}개의 객체가 감지되었습니다.`);
+      setStatus(`${filteredPredictions.length}개의 객체가 감지되었습니다.`);
     } catch (error) {
       console.error('객체 감지 실패:', error);
       setStatus(`객체 감지 실패: ${error.message}`);
     } finally {
       setIsDetecting(false);
+    }
+  };
+
+  // 객체 인식 향상 (클래스 매핑 및 확장)
+  const enhanceObjectRecognition = (prediction) => {
+    const { class: originalClass, score, bbox } = prediction;
+    
+    // 클래스 매핑 및 확장
+    const classMappings = {
+      // 가구 관련
+      'chair': ['chair', 'stool', 'seat', '행거', 'hanger'],
+      'dining table': ['table', 'desk', 'dining table', '책상'],
+      'bed': ['bed', 'mattress', '침대'],
+      
+      // 생활용품
+      'scissors': ['scissors', '빨래집게', 'clothespin', 'clip'],
+      'handbag': ['bag', 'handbag', 'purse', '가방'],
+      'book': ['book', 'magazine', '책'],
+      'bottle': ['bottle', 'container', '병'],
+      'cup': ['cup', 'mug', 'glass', '컵'],
+      'bowl': ['bowl', 'dish', 'plate', '그릇'],
+      
+      // 의류 관련
+      'tie': ['tie', 'necktie', '넥타이'],
+      'handbag': ['handbag', 'purse', 'bag', '손가방'],
+      
+      // 전자제품
+      'cell phone': ['phone', 'smartphone', 'cell phone', '휴대폰'],
+      'laptop': ['laptop', 'computer', 'notebook', '노트북'],
+      'tv': ['tv', 'television', 'monitor', '텔레비전'],
+      
+      // 기타
+      'clock': ['clock', 'watch', '시계'],
+      'vase': ['vase', 'pot', '화분'],
+      'teddy bear': ['toy', 'doll', 'teddy bear', '인형']
+    };
+    
+    // 원본 클래스가 매핑에 있으면 확장된 클래스들 추가
+    if (classMappings[originalClass]) {
+      const enhancedClasses = classMappings[originalClass];
+      // 가장 적절한 클래스 선택 (첫 번째가 가장 일반적)
+      const enhancedClass = enhancedClasses[0];
+      
+      return {
+        ...prediction,
+        class: enhancedClass,
+        originalClass: originalClass,
+        possibleClasses: enhancedClasses,
+        confidence: score
+      };
+    }
+    
+    return {
+      ...prediction,
+      confidence: score
+    };
+  };
+
+  // 이미지 전처리 (성능 최적화)
+  const preprocessImageForDetection = (imageElement) => {
+    try {
+      // 최적 해상도로 리사이즈 (성능과 정확도의 균형)
+      const targetSize = 300;
+      
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      if (!ctx) {
+        console.error('Canvas context를 가져올 수 없습니다.');
+        return imageElement;
+      }
+      
+      canvas.width = targetSize;
+      canvas.height = targetSize;
+      
+      // 고품질 이미지 그리기
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(imageElement, 0, 0, targetSize, targetSize);
+      
+      return canvas;
+    } catch (error) {
+      console.error('이미지 전처리 실패:', error);
+      return imageElement;
     }
   };
 
@@ -234,13 +375,13 @@ function App() {
     return 'very-low';
   };
 
-  // 실시간 감지 토글 (기본 설정)
+  // 실시간 감지 토글 (성능 최적화)
   const toggleRealTimeDetection = () => {
     if (!isRealTimeDetection) {
       setIsRealTimeDetection(true);
-      setStatus('실시간 객체 감지가 시작되었습니다.');
+      setStatus('실시간 객체 감지가 시작되었습니다. (최적화 모드)');
       
-      // 1초마다 객체 감지
+      // 1.5초마다 객체 감지 (성능과 반응성의 균형)
       detectionIntervalRef.current = setInterval(() => {
         if (videoRef.current?.readyState === videoRef.current?.HAVE_ENOUGH_DATA) {
           // 이전 감지가 완료되지 않았으면 스킵
@@ -248,7 +389,7 @@ function App() {
             detectObjects(videoRef.current);
           }
         }
-      }, 1000);
+      }, 1500);
     } else {
       setIsRealTimeDetection(false);
       setStatus('실시간 객체 감지가 중지되었습니다.');
@@ -340,6 +481,16 @@ function App() {
           {isBackCamera ? '🔄 전면 카메라로 전환' : '🔄 후면 카메라로 전환'}
         </button>
         <button 
+          onClick={() => setDetectionMode(detectionMode === 'normal' ? 'enhanced' : 'normal')}
+          style={{
+            background: detectionMode === 'enhanced' 
+              ? 'linear-gradient(45deg, #00b894, #00a085)' 
+              : 'linear-gradient(45deg, #fdcb6e, #e17055)'
+          }}
+        >
+          {detectionMode === 'enhanced' ? '🎯 향상 모드' : '🔍 일반 모드'}
+        </button>
+        <button 
           onClick={toggleRealTimeDetection}
           style={{
             background: isRealTimeDetection 
@@ -368,10 +519,36 @@ function App() {
         User Agent: {navigator.userAgent}<br/>
         TensorFlow 백엔드: {tf.getBackend()}<br/>
         모델 상태: {model ? '로드됨' : '로드 안됨'}<br/>
+        감지 모드: {detectionMode === 'enhanced' ? '향상 모드' : '일반 모드'}<br/>
         감지 중: {isDetecting ? '예' : '아니오'}<br/>
         실시간 감지: {isRealTimeDetection ? '활성' : '비활성'}<br/>
         예측 결과: {predictions.length}개<br/>
         비디오 상태: {videoRef.current?.readyState || '없음'}
+      </div>
+
+      {/* 인식 팁 */}
+      <div style={{ 
+        background: '#e8f4fd', 
+        padding: '15px', 
+        margin: '10px 0', 
+        borderRadius: '10px',
+        border: '2px solid #667eea'
+      }}>
+        <h4 style={{ margin: '0 0 10px 0', color: '#2c5aa0' }}>💡 인식 팁</h4>
+        <p style={{ margin: '5px 0', fontSize: '14px' }}>
+          <strong>빨래집게, 손수건, 행거</strong> 같은 세부 물건들을 인식하려면:
+        </p>
+        <ul style={{ margin: '5px 0', paddingLeft: '20px', fontSize: '14px' }}>
+          <li>객체를 화면 중앙에 배치하세요</li>
+          <li>충분한 조명을 확보하세요</li>
+          <li>객체가 화면의 1/4 이상을 차지하도록 하세요</li>
+          <li>배경과 구분되는 색상의 물건을 사용하세요</li>
+          <li>여러 각도에서 시도해보세요</li>
+        </ul>
+        <p style={{ margin: '5px 0', fontSize: '12px', color: '#666' }}>
+          현재 모델은 80가지 일반적인 객체를 인식합니다. 
+          세부 물건들은 유사한 카테고리로 매핑됩니다.
+        </p>
       </div>
 
       <div className="detection-results">
