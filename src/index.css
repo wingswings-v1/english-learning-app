@@ -1,0 +1,504 @@
+body {
+  margin: 0;
+  font-family: 'Arial', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.container {
+  background: white;
+  border-radius: 20px;
+  padding: 30px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+  max-width: 800px;
+  margin: 20px auto;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.word-title {
+  font-size: 2.5em;
+  color: #333;
+  margin: 0;
+  text-transform: capitalize;
+}
+
+.pronunciation {
+  font-size: 1.2em;
+  color: #666;
+  margin: 10px 0;
+  font-style: italic;
+}
+
+.part-of-speech {
+  display: inline-block;
+  background: linear-gradient(45deg, #667eea, #764ba2);
+  color: white;
+  padding: 5px 15px;
+  border-radius: 20px;
+  font-size: 0.9em;
+  margin: 10px 5px;
+}
+
+.video-container {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto 20px;
+  border-radius: 15px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+
+#video {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+#canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.controls {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  margin: 20px 0;
+  flex-wrap: wrap;
+}
+
+/* 모바일 환경 최적화 */
+@media (max-width: 768px) {
+  .controls {
+    gap: 10px;
+    margin: 15px 0;
+  }
+  
+  .controls button {
+    padding: 12px 20px;
+    font-size: 14px;
+    min-width: 120px;
+  }
+  
+  .container {
+    margin: 10px;
+    padding: 20px;
+  }
+  
+  .video-container {
+    margin: 0 auto 15px;
+  }
+  
+  .word-detail-content {
+    max-height: 400px;
+    padding: 20px;
+  }
+  
+  .vocabulary-content {
+    max-height: 300px;
+    padding: 20px;
+  }
+}
+
+button {
+  background: linear-gradient(45deg, #667eea, #764ba2);
+  color: white;
+  border: none;
+  padding: 15px 30px;
+  border-radius: 50px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+}
+
+button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.detection-results {
+  margin-top: 20px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 15px;
+  min-height: 100px;
+}
+
+.detection-item {
+  background: white;
+  padding: 15px;
+  margin: 10px 0;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.object-name {
+  font-size: 18px;
+  font-weight: bold;
+  color: #333;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.object-name:hover {
+  color: #667eea;
+}
+
+.confidence {
+  background: #667eea;
+  color: white;
+  padding: 5px 15px;
+  border-radius: 20px;
+  font-size: 14px;
+  position: relative;
+}
+
+.confidence.high {
+  background: linear-gradient(45deg, #00ff00, #00cc00);
+}
+
+.confidence.medium {
+  background: linear-gradient(45deg, #ffff00, #ffcc00);
+  color: #333;
+}
+
+.confidence.low {
+  background: linear-gradient(45deg, #ff8800, #ff6600);
+}
+
+.confidence.very-low {
+  background: linear-gradient(45deg, #ff0000, #cc0000);
+}
+
+.status {
+  text-align: center;
+  margin: 20px 0;
+  font-size: 16px;
+  color: #666;
+}
+
+.loading {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* 단어 상세 정보 섹션 스타일 */
+.word-detail-section {
+  margin-top: 30px;
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+  overflow: hidden;
+  border: 2px solid #667eea;
+}
+
+.word-detail-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 20px 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.word-detail-header h2 {
+  margin: 0;
+  font-size: 2.5em;
+  text-transform: capitalize;
+}
+
+.close-word-detail {
+  background: rgba(255,255,255,0.2);
+  color: white;
+  border: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  font-size: 20px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.close-word-detail:hover {
+  background: rgba(255,255,255,0.3);
+  transform: scale(1.1);
+}
+
+.word-detail-content {
+  padding: 30px;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.word-pronunciation {
+  text-align: center;
+  margin: 20px 0;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 15px;
+}
+
+.ipa-pronunciation {
+  font-size: 1.5em;
+  color: #667eea;
+  font-weight: bold;
+  margin: 10px 0;
+}
+
+.audio-button {
+  background: linear-gradient(45deg, #00b894, #00a085);
+  color: white;
+  border: none;
+  padding: 12px 25px;
+  border-radius: 25px;
+  cursor: pointer;
+  margin: 10px 5px;
+  font-size: 16px;
+  transition: all 0.3s ease;
+}
+
+.audio-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+.word-info-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 20px 0;
+}
+
+.info-tag {
+  background: linear-gradient(45deg, #667eea, #764ba2);
+  color: white;
+  padding: 8px 15px;
+  margin: 5px;
+  border-radius: 20px;
+  font-size: 14px;
+}
+
+.definition-section {
+  margin: 25px 0;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 15px;
+  border-left: 5px solid #667eea;
+}
+
+.definition-title {
+  font-size: 1.3em;
+  color: #333;
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+}
+
+.definition-title::before {
+  content: "📖";
+  margin-right: 10px;
+}
+
+.definition-item {
+  background: white;
+  padding: 15px;
+  margin: 10px 0;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.definition-text {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.example {
+  background: #e8f4fd;
+  padding: 12px 15px;
+  border-radius: 8px;
+  margin: 10px 0;
+  font-style: italic;
+  color: #2c5aa0;
+  border-left: 3px solid #667eea;
+}
+
+.example::before {
+  content: "💡 ";
+}
+
+.synonyms {
+  background: #f0f8e8;
+  padding: 10px 15px;
+  border-radius: 8px;
+  margin: 10px 0;
+  color: #2d5a2d;
+}
+
+.synonyms::before {
+  content: "🔗 동의어: ";
+  font-weight: bold;
+}
+
+.etymology {
+  background: #fff3cd;
+  padding: 15px;
+  border-radius: 8px;
+  margin: 10px 0;
+  color: #856404;
+  border-left: 3px solid #ffc107;
+}
+
+.etymology::before {
+  content: "📚 어원: ";
+  font-weight: bold;
+}
+
+.error-message {
+  background: #ffe6e6;
+  color: #d63031;
+  padding: 20px;
+  border-radius: 10px;
+  text-align: center;
+  margin: 20px 0;
+  border: 1px solid #fab1a0;
+}
+
+/* 단어장 스타일 */
+.vocabulary-section {
+  margin-top: 30px;
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+  overflow: hidden;
+  border: 2px solid #00b894;
+}
+
+.vocabulary-header {
+  background: linear-gradient(135deg, #00b894 0%, #00a085 100%);
+  color: white;
+  padding: 20px 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.vocabulary-header h2 {
+  margin: 0;
+  font-size: 2em;
+}
+
+.vocabulary-content {
+  padding: 30px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.vocabulary-item {
+  background: #f8f9fa;
+  padding: 15px;
+  margin: 10px 0;
+  border-radius: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.vocabulary-word {
+  font-size: 18px;
+  font-weight: bold;
+  color: #333;
+  cursor: pointer;
+}
+
+.vocabulary-word:hover {
+  color: #00b894;
+}
+
+.vocabulary-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.remove-button {
+  background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 20px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.remove-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+.save-button {
+  background: linear-gradient(45deg, #00b894, #00a085);
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 20px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.save-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+.save-button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.empty-vocabulary {
+  text-align: center;
+  color: #666;
+  font-style: italic;
+  padding: 40px;
+}

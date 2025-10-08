@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>English Learning with Object Detection</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            max-width: 800px;
+            width: 100%;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+
+        .video-container {
+            position: relative;
+            width: 100%;
+            max-width: 640px;
+            margin: 0 auto 20px;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        #video {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        button {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .detection-results {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            min-height: 100px;
+        }
+
+        .detection-item {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .object-name {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .confidence {
+            background: #667eea;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+
+        .status {
+            text-align: center;
+            margin: 20px 0;
+            font-size: 16px;
+            color: #666;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 단어 상세 정보 섹션 스타일 */
+        .word-detail-section {
+            margin-top: 30px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+            border: 2px solid #667eea;
+        }
+
+        .word-detail-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .word-detail-header h2 {
+            margin: 0;
+            font-size: 2.5em;
+            text-transform: capitalize;
+        }
+
+        .close-word-detail {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .close-word-detail:hover {
+            background: rgba(255,255,255,0.3);
+            transform: scale(1.1);
+        }
+
+        .word-detail-content {
+            padding: 30px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .word-pronunciation {
+            text-align: center;
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 15px;
+        }
+
+        .ipa-pronunciation {
+            font-size: 1.5em;
+            color: #667eea;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .audio-button {
+            background: linear-gradient(45deg, #00b894, #00a085);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            margin: 10px 5px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .audio-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .word-info-tags {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin: 20px 0;
+        }
+
+        .info-tag {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 8px 15px;
+            margin: 5px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+
+        .definition-section {
+            margin: 25px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            border-left: 5px solid #667eea;
+        }
+
+        .definition-title {
+            font-size: 1.3em;
+            color: #333;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+
+        .definition-title::before {
+            content: "📖";
+            margin-right: 10px;
+        }
+
+        .definition-item {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .definition-text {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .example {
+            background: #e8f4fd;
+            padding: 12px 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-style: italic;
+            color: #2c5aa0;
+            border-left: 3px solid #667eea;
+        }
+
+        .example::before {
+            content: "💡 ";
+        }
+
+        .synonyms {
+            background: #f0f8e8;
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            color: #2d5a2d;
+        }
+
+        .synonyms::before {
+            content: "🔗 동의어: ";
+            font-weight: bold;
+        }
+
+        .etymology {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            color: #856404;
+            border-left: 3px solid #ffc107;
+        }
+
+        .etymology::before {
+            content: "📚 어원: ";
+            font-weight: bold;
+        }
+
+        .error-message {
+            background: #ffe6e6;
+            color: #d63031;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            margin: 20px 0;
+            border: 1px solid #fab1a0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 English Learning with AI</h1>
+        
+        <div class="video-container">
+            <video id="video" autoplay muted playsinline></video>
+            <canvas id="canvas"></canvas>
+        </div>
+
+        <div class="controls">
+            <button id="startBtn">📹 Start Camera</button>
+            <button id="toggleDetectionBtn" disabled>🔴 Start Real-time Detection</button>
+            <button id="captureBtn" disabled>📸 Capture & Detect</button>
+            <button id="stopBtn" disabled>⏹️ Stop Camera</button>
+        </div>
+
+        <div class="status" id="status">카메라를 시작하려면 "Start Camera" 버튼을 클릭하세요.</div>
+
+        <div class="detection-results">
+            <h3>🔍 Detected Objects:</h3>
+            <div id="results"></div>
+        </div>
+
+        <!-- 단어 상세 정보 섹션 -->
+        <div class="word-detail-section" id="wordDetailSection" style="display: none;">
+            <div class="word-detail-header">
+                <h2 id="selectedWord">Word</h2>
+                <button class="close-word-detail" onclick="closeWordDetail()">✕</button>
+            </div>
+            <div class="word-detail-content" id="wordDetailContent">
+                <div class="loading">
+                    <div class="loading-spinner"></div>
+                    단어 정보를 불러오는 중...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let video = document.getElementById('video');
+        let canvas = document.getElementById('canvas');
+        let ctx = canvas.getContext('2d');
+        let model = null;
+        let isDetecting = false;
+        let isRealTimeDetection = false;
+        let detectionInterval = null;
+        let lastPredictions = [];
+
+        const startBtn = document.getElementById('startBtn');
+        const toggleDetectionBtn = document.getElementById('toggleDetectionBtn');
+        const captureBtn = document.getElementById('captureBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const status = document.getElementById('status');
+        const results = document.getElementById('results');
+
+        // TensorFlow.js 모델 로드
+        async function loadModel() {
+            try {
+                status.innerHTML = '<div class="loading"></div> AI 모델을 로딩 중...';
+                model = await cocoSsd.load();
+                status.textContent = 'AI 모델이 성공적으로 로드되었습니다!';
+                console.log('COCO-SSD 모델이 로드되었습니다.');
+            } catch (error) {
+                console.error('모델 로드 실패:', error);
+                status.textContent = '모델 로드에 실패했습니다. 페이지를 새로고침해주세요.';
+            }
+        }
+
+        // 카메라 시작
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    } 
+                });
+                
+                video.srcObject = stream;
+                video.onloadedmetadata = () => {
+                    video.play();
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                };
+
+                startBtn.disabled = true;
+                toggleDetectionBtn.disabled = false;
+                captureBtn.disabled = false;
+                stopBtn.disabled = false;
+                status.textContent = '카메라가 시작되었습니다. 실시간 감지를 시작하거나 "Capture & Detect" 버튼을 클릭하세요.';
+            } catch (error) {
+                console.error('카메라 접근 실패:', error);
+                status.textContent = '카메라에 접근할 수 없습니다. 브라우저 권한을 확인해주세요.';
+            }
+        }
+
+        // 카메라 중지
+        function stopCamera() {
+            const stream = video.srcObject;
+            if (stream) {
+                const tracks = stream.getTracks();
+                tracks.forEach(track => track.stop());
+                video.srcObject = null;
+            }
+
+            // 실시간 감지 중지
+            if (detectionInterval) {
+                clearInterval(detectionInterval);
+                detectionInterval = null;
+            }
+            isRealTimeDetection = false;
+
+            startBtn.disabled = false;
+            toggleDetectionBtn.disabled = true;
+            captureBtn.disabled = true;
+            stopBtn.disabled = true;
+            status.textContent = '카메라가 중지되었습니다.';
+            
+            // 캔버스와 결과 초기화
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            results.innerHTML = '';
+        }
+
+        // 객체 감지 및 그리기
+        async function detectObjects(imageElement) {
+            if (!model) {
+                status.textContent = '모델이 로드되지 않았습니다.';
+                return;
+            }
+
+            try {
+                status.textContent = '객체를 감지하는 중...';
+                const predictions = await model.detect(imageElement);
+                
+                // 마지막 예측 결과 저장
+                lastPredictions = predictions;
+                
+                // 캔버스 초기화
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // 결과 표시
+                displayResults(predictions);
+                
+                // 바운딩 박스 그리기
+                predictions.forEach(prediction => {
+                    const [x, y, width, height] = prediction.bbox;
+                    const confidence = Math.round(prediction.score * 100);
+                    
+                    // 바운딩 박스 그리기
+                    ctx.strokeStyle = '#00ff00';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(x, y, width, height);
+                    
+                    // 라벨 그리기
+                    ctx.fillStyle = '#00ff00';
+                    ctx.font = '16px Arial';
+                    ctx.fillText(`${prediction.class} (${confidence}%)`, x, y - 10);
+                    
+                    // 클릭 가능한 영역 표시를 위한 사각형
+                    ctx.strokeStyle = 'rgba(0, 255, 0, 0.3)';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(x, y - 25, ctx.measureText(`${prediction.class} (${confidence}%)`).width, 20);
+                });
+                
+                status.textContent = `${predictions.length}개의 객체가 감지되었습니다.`;
+                
+            } catch (error) {
+                console.error('객체 감지 실패:', error);
+                status.textContent = '객체 감지에 실패했습니다.';
+            }
+        }
+
+        // 실시간 감지 토글
+        function toggleRealTimeDetection() {
+            if (!isRealTimeDetection) {
+                // 실시간 감지 시작
+                isRealTimeDetection = true;
+                toggleDetectionBtn.textContent = '🟢 Stop Real-time Detection';
+                toggleDetectionBtn.style.background = 'linear-gradient(45deg, #ff6b6b, #ee5a24)';
+                status.textContent = '실시간 객체 감지가 시작되었습니다.';
+                
+                // 1초마다 객체 감지 (성능을 위해 간격 조절)
+                detectionInterval = setInterval(() => {
+                    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                        detectObjects(video);
+                    }
+                }, 1000);
+                
+            } else {
+                // 실시간 감지 중지
+                isRealTimeDetection = false;
+                toggleDetectionBtn.textContent = '🔴 Start Real-time Detection';
+                toggleDetectionBtn.style.background = 'linear-gradient(45deg, #667eea, #764ba2)';
+                status.textContent = '실시간 객체 감지가 중지되었습니다.';
+                
+                if (detectionInterval) {
+                    clearInterval(detectionInterval);
+                    detectionInterval = null;
+                }
+                
+                // 캔버스 초기화
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                results.innerHTML = '';
+            }
+        }
+
+        // 결과 표시
+        function displayResults(predictions) {
+            results.innerHTML = '';
+            
+            if (predictions.length === 0) {
+                results.innerHTML = '<div class="detection-item">감지된 객체가 없습니다.</div>';
+                return;
+            }
+
+            predictions.forEach(prediction => {
+                const confidence = Math.round(prediction.score * 100);
+                const item = document.createElement('div');
+                item.className = 'detection-item';
+                item.innerHTML = `
+                    <span class="object-name" onclick="showWordDetail('${prediction.class}')" style="cursor: pointer; text-decoration: underline;">${prediction.class}</span>
+                    <span class="confidence">${confidence}%</span>
+                `;
+                results.appendChild(item);
+            });
+        }
+
+        // 단어 상세 정보 표시
+        function showWordDetail(word) {
+            const wordDetailSection = document.getElementById('wordDetailSection');
+            const selectedWord = document.getElementById('selectedWord');
+            const wordDetailContent = document.getElementById('wordDetailContent');
+            
+            // 단어 제목 설정
+            selectedWord.textContent = word;
+            
+            // 로딩 표시
+            wordDetailContent.innerHTML = `
+                <div class="loading">
+                    <div class="loading-spinner"></div>
+                    단어 정보를 불러오는 중...
+                </div>
+            `;
+            
+            // 섹션 표시
+            wordDetailSection.style.display = 'block';
+            
+            // 단어 정보 로드
+            loadWordDetails(word);
+            
+            // 스크롤을 단어 정보 섹션으로 이동
+            wordDetailSection.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // 단어 상세 정보 닫기
+        function closeWordDetail() {
+            const wordDetailSection = document.getElementById('wordDetailSection');
+            wordDetailSection.style.display = 'none';
+        }
+
+        // Free Dictionary API를 사용하여 단어 정보 가져오기
+        async function loadWordDetails(word) {
+            try {
+                const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
+                
+                if (!response.ok) {
+                    throw new Error('단어를 찾을 수 없습니다.');
+                }
+
+                const data = await response.json();
+                displayWordDetails(data[0]); // 첫 번째 결과 사용
+
+            } catch (error) {
+                console.error('Error:', error);
+                const wordDetailContent = document.getElementById('wordDetailContent');
+                wordDetailContent.innerHTML = `
+                    <div class="error-message">
+                        <h3>오류</h3>
+                        <p>단어 정보를 불러올 수 없습니다: ${error.message}</p>
+                        <p>다른 단어를 시도해보세요.</p>
+                    </div>
+                `;
+            }
+        }
+
+        // 단어 정보 표시
+        function displayWordDetails(data) {
+            const wordDetailContent = document.getElementById('wordDetailContent');
+            
+            // 발음 정보
+            let pronunciationHtml = '';
+            if (data.phonetics && data.phonetics.length > 0) {
+                const phonetic = data.phonetics.find(p => p.text) || data.phonetics[0];
+                if (phonetic && phonetic.text) {
+                    pronunciationHtml = `
+                        <div class="word-pronunciation">
+                            <div class="ipa-pronunciation">/${phonetic.text}/</div>
+                    `;
+                    
+                    // 오디오 버튼 추가
+                    if (phonetic.audio) {
+                        pronunciationHtml += `
+                            <button class="audio-button" onclick="playAudio('${phonetic.audio}')">
+                                🔊 발음 듣기
+                            </button>
+                        `;
+                    }
+                    pronunciationHtml += '</div>';
+                }
+            }
+
+            // 단어 정보 태그 (품사 등)
+            let infoTagsHtml = '';
+            if (data.meanings && data.meanings.length > 0) {
+                const partsOfSpeech = [...new Set(data.meanings.map(m => m.partOfSpeech))];
+                infoTagsHtml = `
+                    <div class="word-info-tags">
+                        ${partsOfSpeech.map(pos => `<span class="info-tag">${pos}</span>`).join('')}
+                    </div>
+                `;
+            }
+
+            // 정의와 예문 표시
+            let definitionsHtml = '';
+            if (data.meanings && data.meanings.length > 0) {
+                data.meanings.forEach((meaning, index) => {
+                    definitionsHtml += `
+                        <div class="definition-section">
+                            <h3 class="definition-title">${meaning.partOfSpeech || 'Definition'}</h3>
+                    `;
+
+                    if (meaning.definitions && meaning.definitions.length > 0) {
+                        meaning.definitions.forEach((def, defIndex) => {
+                            definitionsHtml += `
+                                <div class="definition-item">
+                                    <div class="definition-text">
+                                        <strong>${defIndex + 1}.</strong> ${def.definition}
+                                    </div>
+                            `;
+
+                            if (def.example) {
+                                definitionsHtml += `<div class="example">${def.example}</div>`;
+                            }
+
+                            if (def.synonyms && def.synonyms.length > 0) {
+                                definitionsHtml += `<div class="synonyms">${def.synonyms.slice(0, 5).join(', ')}</div>`;
+                            }
+
+                            definitionsHtml += `</div>`;
+                        });
+                    }
+
+                    definitionsHtml += `</div>`;
+                });
+            }
+
+            // 어원 정보 (가능한 경우)
+            let etymologyHtml = '';
+            if (data.etymology) {
+                etymologyHtml = `<div class="etymology">${data.etymology}</div>`;
+            }
+
+            // 최종 HTML 조합
+            wordDetailContent.innerHTML = `
+                ${pronunciationHtml}
+                ${infoTagsHtml}
+                ${etymologyHtml}
+                ${definitionsHtml}
+            `;
+        }
+
+        // 오디오 재생
+        function playAudio(audioUrl) {
+            const audio = new Audio(audioUrl);
+            audio.play().catch(error => {
+                console.error('Audio play failed:', error);
+                alert('오디오를 재생할 수 없습니다.');
+            });
+        }
+
+        // 캔버스 클릭 이벤트
+        canvas.addEventListener('click', (event) => {
+            if (lastPredictions.length === 0) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            
+            // 클릭된 객체 찾기
+            lastPredictions.forEach(prediction => {
+                const [bx, by, bwidth, bheight] = prediction.bbox;
+                const labelHeight = 25;
+                const labelY = by - labelHeight;
+                
+                // 라벨 영역 클릭 확인
+                if (x >= bx && x <= bx + bwidth && y >= labelY && y <= by) {
+                    showWordDetail(prediction.class);
+                }
+            });
+        });
+
+        // 이벤트 리스너
+        startBtn.addEventListener('click', startCamera);
+        toggleDetectionBtn.addEventListener('click', toggleRealTimeDetection);
+        stopBtn.addEventListener('click', stopCamera);
+        captureBtn.addEventListener('click', () => detectObjects(video));
+
+        // 페이지 로드 시 모델 로드
+        window.addEventListener('load', loadModel);
+    </script>
+</body>
+</html>
