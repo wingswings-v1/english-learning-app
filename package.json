@@ -2,6 +2,7 @@
   "name": "english-learning-app",
   "version": "1.0.0",
   "description": "AI-powered English learning app with object detection",
+  "homepage": "https://yourusername.github.io/english-learning-app",
   "main": "index.js",
   "scripts": {
     "start": "react-scripts start",
